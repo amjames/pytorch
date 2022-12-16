@@ -30,7 +30,7 @@ void initCudartBindings(PyObject* module) {
   // By splitting the names of these objects into two literals we prevent the
   // HIP rewrite rules from changing these names when building with HIP.
 
-#if !defined(USE_ROCM)
+#if !defined(USE_ROCM) && CUDA_VERSION < 12000
   py::enum_<cudaOutputMode_t>(
       cudart,
       "cuda"
@@ -96,7 +96,11 @@ void initCudartBindings(PyObject* module) {
   cudart.def(
       "cuda"
       "ProfilerInitialize",
+#if CUDA_VERSION < 12000
       cudaProfilerInitialize);
+#else
+      cudaProfilerStart);
+#endif
 #endif
   cudart.def(
       "cuda"
