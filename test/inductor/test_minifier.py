@@ -9,7 +9,7 @@ import torch._inductor.utils
 from torch._dynamo.test_minifier_common import MinifierTestBase
 from torch.testing._internal.common_utils import IS_MACOS
 
-_HAS_TRITON = torch._inductor.utils.has_triton()
+_HAS_TRITON = torch._inductor.cuda_properties.has_triton()
 requires_cuda = functools.partial(unittest.skipIf, not _HAS_TRITON, "requires cuda")
 
 CPP_COMPILE_ERROR = """\

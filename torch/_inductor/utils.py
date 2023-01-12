@@ -18,7 +18,6 @@ import torch
 from torch.fx.immutable_collections import immutable_dict, immutable_list
 
 from . import config
-from .cuda_properties import get_device_capability
 
 VarRanges = Dict[sympy.Expr, sympy.Expr]
 
@@ -29,18 +28,6 @@ dynamo_logging = import_module(f"{config.dynamo_import}.logging")
 dynamo_optimizations = import_module(f"{config.dynamo_import}.optimizations")
 dynamo_testing = import_module(f"{config.dynamo_import}.testing")
 dynamo_utils = import_module(f"{config.dynamo_import}.utils")
-
-
-@functools.lru_cache(None)
-def has_triton():
-    if not torch.cuda.is_available():
-        return False
-    try:
-        import triton
-
-        return triton is not None and get_device_capability() >= (7, 0)
-    except ImportError:
-        return False
 
 
 @functools.lru_cache(None)

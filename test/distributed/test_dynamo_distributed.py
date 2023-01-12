@@ -16,7 +16,7 @@ from torch import nn
 from torch._dynamo import config
 from torch._dynamo.utils import same
 from torch._dynamo.testing import collect_results
-from torch._inductor.utils import has_triton
+from torch._inductor.cuda_properties import has_triton
 from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP

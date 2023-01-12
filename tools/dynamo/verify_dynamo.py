@@ -95,9 +95,9 @@ def check_dynamo(backend, device, err_msg):
         import torch._dynamo as dynamo
 
         if device == "cuda":
-            import torch._inductor.utils as utils
+            import torch._inductor.cuda_properties as cuda_properties
 
-            if not utils.has_triton():
+            if not cuda_properties.has_triton():
                 print(
                     f"WARNING: CUDA available but triton cannot be used. "
                     f"Your GPU may not be supported. "

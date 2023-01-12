@@ -1,4 +1,4 @@
-from ..utils import has_triton
+from ..cuda_properties import has_triton
 
 if has_triton():
     from .conv import _conv, conv

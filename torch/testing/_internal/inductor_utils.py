@@ -1,7 +1,7 @@
 from subprocess import CalledProcessError
 
 from torch._inductor.codecache import CppCodeCache
-from torch._inductor.utils import has_triton
+from torch._inductor.cuda_properties import has_triton
 from torch.testing._internal.common_utils import (
     IS_FBCODE,
     TEST_WITH_ROCM,

@@ -1,6 +1,6 @@
 import torch
 
-from ..utils import has_triton
+from ..cuda_properties import has_triton
 
 if has_triton():
     import triton

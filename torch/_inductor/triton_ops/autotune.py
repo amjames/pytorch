@@ -13,7 +13,8 @@ import torch
 from .. import config
 from ..ir import ReductionHint, TileHint
 from ..triton_ops.mm_perf_model import estimate_matmul_time
-from ..utils import conditional_product, dynamo_utils, has_triton
+from ..utils import conditional_product, dynamo_utils
+from ..cuda_properties import has_triton
 from .conv_perf_model import (
     early_config_prune as conv_early_config_prune,
     estimate_conv_time,
