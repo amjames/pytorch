@@ -1,5 +1,5 @@
 import torch
-from torch._inductor.utils import has_triton
+from torch._inductor.cuda_properties import has_triton
 
 _sparse_kernels_lib = torch.library.Library("aten", "IMPL")
 

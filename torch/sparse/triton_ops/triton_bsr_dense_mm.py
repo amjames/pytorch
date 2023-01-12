@@ -1,10 +1,11 @@
 import torch
-from torch._inductor.utils import has_triton
+from torch._inductor.cuda_properties import has_triton
 
 import triton
 import triton.language as tl
-import itertools
 from typing import Optional, Tuple
+
+__all__ = ['bsr_dense_mm']
 
 
 def compressed_indices_to_plain_indices(cidx, pidx):
