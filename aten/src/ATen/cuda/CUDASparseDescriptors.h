@@ -223,6 +223,19 @@ class TORCH_CUDA_CPP_API CuSparseSpMatCsrDescriptor
 #endif
 };
 
+class TORCH_CUDA_CPP_API CuSparseSpMatBsrDescriptor
+    : public CuSparseSpMatDescriptor {
+ public:
+  explicit CuSparseSpMatBsrDescriptor(
+      const Tensor& input,
+      int64_t batch_offset = -1);
+
+  void set_tensor(const Tensor& input) {
+    auto crow_indices = input.crow_indices();
+    auto col_indices = input.col_indices();
+    auto values = input.values();
+  }
+};
 #if AT_USE_CUSPARSE_GENERIC_SPSV()
 class TORCH_CUDA_CPP_API CuSparseSpSVDescriptor
     : public CuSparseDescriptor<cusparseSpSVDescr, &cusparseSpSV_destroyDescr> {

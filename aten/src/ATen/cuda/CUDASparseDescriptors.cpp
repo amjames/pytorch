@@ -206,6 +206,74 @@ CuSparseSpMatCsrDescriptor::CuSparseSpMatCsrDescriptor(const Tensor& input, int6
   descriptor_.reset(raw_descriptor);
 }
 
+CuSparseSpMatBsrDescriptor::CuSparseSpMatBsrDescriptor(
+    const Tensor& input,
+    int64_t batch_offset) {
+  TORCH_INTERNAL_ASSERT_DEBUG_ONLY(input.dim() >= 2);
+  TORCH_INTERNAL_ASSERT_DEBUG_ONLY(input.dense_dim() == 0);
+
+  auto ndim = input.dim();
+
+  auto crow_indices = input.crow_indices().contiguous();
+  auto col_indices = input.col_indices().contiguous();
+  auto values = input.values().contiguous();
+  auto block_col_dim = values.size(-1);
+  auto block_row_dim = values.size(-2);
+  auto bnnz = values.size(-3);
+  auto bcols = input.size(-1) / block_col_dim;
+  auto brows = input.size(-2) / block_row_dim;
+
+  cusparseIndexType_t index_type =
+      getCuSparseIndexType(crow_indices.scalar_type());
+  cudaDataType value_type = ScalarTypeToCudaDataType(input.scalar_type());
+  check_supported_cuda_type(value_type);
+
+  auto crow_indices_batch_stride = crow_indices.dim() >= 2 && batch_offset >= 0
+      ? crow_indices.stride(-2)
+      : 0;
+  auto col_indices_batch_stride =
+      col_indices.dim() >= 2 && batch_offset >= 0 ? col_indices.stride(-2) : 0;
+  auto values_batch_stride =
+      values.dim() >= 4 && batch_offset >= 0 ? values.stride(-4) : 0;
+
+  cusparseSpMatDescr_t raw_descriptor;
+  TORCH_CUDASPARSE_CHECK(cusparseCreateBsr(
+      &raw_descriptor, // output descriptor
+      brows,
+      bcols,
+      bnnz,
+      block_row_dim,
+      block_col_dim,
+      // row offsets of the sparse matrix, size = rows + 1
+      static_cast<char*>(crow_indices.data_ptr()) +
+          batch_offset * crow_indices_batch_stride * crow_indices.itemsize(),
+      // column indices of the sparse matrix, size = nnz
+      static_cast<char*>(col_indices.data_ptr()) +
+          batch_offset * col_indices_batch_stride * col_indices.itemsize(),
+      // values of the sparse matrix, size = nnz
+      static_cast<char*>(values.data_ptr()) +
+          batch_offset * values_batch_stride * values.itemsize(),
+      index_type, // data type of row offsets index
+      index_type, // data type of col indices
+      CUSPARSE_INDEX_BASE_ZERO, // base index of row offset and col indices
+      value_type, // data type of values
+      CUSPARSE_ORDER_ROW // Block data is row-major
+      ));
+
+  if (ndim > 2) {
+    int batch_count =
+        at::native::cuda_int_cast(at::native::batchCount(input), "batch_count");
+    TORCH_CUDASPARSE_CHECK(cusparseBsrSetStridedBatch(
+        raw_descriptor,
+        batch_count,
+        crow_indices_batch_stride,
+        col_indices_batch_stride,
+        values_batch_stride));
+  }
+
+  descriptor_.reset(raw_descriptor);
+}
+
 #endif // AT_USE_CUSPARSE_GENERIC_API() || AT_USE_HIPSPARSE_GENERIC_API()
 
 } // namespace sparse

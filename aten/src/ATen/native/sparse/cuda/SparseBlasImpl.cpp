@@ -1,3 +1,4 @@
+#include "c10/core/ScalarType.h"
 #define TORCH_ASSERT_ONLY_METHOD_OPERATORS
 #include <ATen/core/Tensor.h>
 #include <ATen/Dispatch.h>
@@ -1402,12 +1403,12 @@ void sampled_addmm_out_sparse_csr(
       "PyTorch with CUDA 11.2.1+. ",
       "Please use PyTorch built with newer CUDA version.");
 #else
-  TORCH_INTERNAL_ASSERT_DEBUG_ONLY(A.layout() == Layout::Strided);
-  TORCH_INTERNAL_ASSERT_DEBUG_ONLY(B.layout() == Layout::Strided);
-  TORCH_INTERNAL_ASSERT_DEBUG_ONLY(C.is_sparse_csr());
+  TORCH_INTERNAL_ASSERT(A.layout() == Layout::Strided);
+  TORCH_INTERNAL_ASSERT(B.layout() == Layout::Strided);
+  TORCH_INTERNAL_ASSERT(C.is_sparse_csr() || C.layout() == Layout::SparseBsr);
 
-  TORCH_INTERNAL_ASSERT_DEBUG_ONLY(batchCount(A) == batchCount(B));
-  TORCH_INTERNAL_ASSERT_DEBUG_ONLY(batchCount(A) == batchCount(C));
+  TORCH_INTERNAL_ASSERT(batchCount(A) == batchCount(B));
+  TORCH_INTERNAL_ASSERT(batchCount(A) == batchCount(C));
 
   cusparseOperation_t opA = CUSPARSE_OPERATION_NON_TRANSPOSE;
   cusparseOperation_t opB = CUSPARSE_OPERATION_NON_TRANSPOSE;
@@ -1415,66 +1416,71 @@ void sampled_addmm_out_sparse_csr(
   c10::MaybeOwned<Tensor> A_ = prepare_dense_matrix_for_cusparse(A);
   c10::MaybeOwned<Tensor> B_ = prepare_dense_matrix_for_cusparse(B);
 
-  AT_DISPATCH_FLOATING_AND_COMPLEX_TYPES(
+  // Factory function to handle correct descriptor creation for layout of C
+  // This is a nested lambda returning a lambda, the outer is evaluated
+  // immidiately to return in the correct descriptor generator. So that the
+  // branch point does not exist inside the loop
+  auto make_c_descriptor =
+      [](const Tensor& C) -> at::cuda::sparse::CuSparseSpMatDescriptor {
+    if (C.layout() == kSparseCsr) {
+      return at::cuda::sparse::CuSparseSpMatCsrDescriptor(C, 0);
+    } else {
+      return at::cuda::sparse::CuSparseSpMatBsrDescriptor(C, 0);
+    }
+  };
+  TORCH_WARN_ONCE(
+      "USING CUSPARSE_BUILD: ",
+      CUSPARSE_VER_MAJOR,
+      ".",
+      CUSPARSE_VER_MINOR,
+      ".",
+      CUSPARSE_VER_PATCH,
+      ".",
+      CUSPARSE_VER_BUILD);
+  AT_DISPATCH_FLOATING_AND_COMPLEX_TYPES_AND2(
+      c10::kBFloat16,
+      c10::kHalf,
       C.scalar_type(),
       "sampled_addmm_out_sparse_csr",
       [&] {
-        // CUDA 11.6 doesn't support batched inputs, it raises an error:
-        // ** On entry to cusparseSDDMM_bufferSize(): batched SDDMM is not supported
-        // So we need to resort to the for loop
-        for (const auto i : c10::irange(batchCount(A))) {
-          auto descA = at::cuda::sparse::CuSparseDnMatDescriptor(*A_, /*batch_offset=*/i);
-          auto descB = at::cuda::sparse::CuSparseDnMatDescriptor(*B_, /*batch_offset=*/i);
-          auto descC = at::cuda::sparse::CuSparseSpMatCsrDescriptor(C, /*batch_offset=*/i);
-
-          auto beta_ = beta.to<scalar_t>();
-          auto alpha_ = alpha.to<scalar_t>();
-          auto compute_type = at::cuda::getCudaDataType<scalar_t>();
-          auto handle = at::cuda::getCurrentCUDASparseHandle();
-          size_t buffer_size = 0;
-          TORCH_CUDASPARSE_CHECK(cusparseSDDMM_bufferSize(
-              handle,
-              opA,
-              opB,
-              &alpha_,
-              descA.descriptor(),
-              descB.descriptor(),
-              &beta_,
-              descC.descriptor(),
-              compute_type,
-              CUSPARSE_SDDMM_ALG_DEFAULT,
-              &buffer_size // output
-              ));
-
-          auto& allocator = *c10::cuda::CUDACachingAllocator::get();
-          auto buffer = allocator.allocate(buffer_size);
-
-          TORCH_CUDASPARSE_CHECK(cusparseSDDMM_preprocess(
-              handle,
-              opA,
-              opB,
-              &alpha_,
-              descA.descriptor(),
-              descB.descriptor(),
-              &beta_,
-              descC.descriptor(),
-              compute_type,
-              CUSPARSE_SDDMM_ALG_DEFAULT,
-              buffer.get()));
-
-          TORCH_CUDASPARSE_CHECK(cusparseSDDMM(
-              handle,
-              opA,
-              opB,
-              &alpha_,
-              descA.descriptor(),
-              descB.descriptor(),
-              &beta_,
-              descC.descriptor(),
-              compute_type,
-              CUSPARSE_SDDMM_ALG_DEFAULT,
-              buffer.get()));
-        }
+        using compute_type = at::opmath_type<scalar_t>;
+        auto compute_cuda_type = at::cuda::getCudaDataType<compute_type>();
+        auto beta_ = beta.to<compute_type>();
+        auto alpha_ = alpha.to<compute_type>();
+        auto handle = at::cuda::getCurrentCUDASparseHandle();
+        size_t buffer_size = 0;
+        auto descA = at::cuda::sparse::CuSparseDnMatDescriptor(*A_);
+        auto descB = at::cuda::sparse::CuSparseDnMatDescriptor(*B_);
+        auto descC = make_c_descriptor(C);
+        // Call to preprocess is only advantageous if you are going to re-use C
+        // with different A/B.
+        TORCH_CUDASPARSE_CHECK(cusparseSDDMM_bufferSize(
+            handle,
+            opA,
+            opB,
+            &alpha_,
+            descA.descriptor(),
+            descB.descriptor(),
+            &beta_,
+            descC.descriptor(),
+            compute_cuda_type,
+            CUSPARSE_SDDMM_ALG_DEFAULT,
+            &buffer_size // output
+            ));
+        auto& allocator = *c10::cuda::CUDACachingAllocator::get();
+        auto buffer = allocator.allocate(buffer_size);
+        TORCH_CUDASPARSE_CHECK(cusparseSDDMM(
+            handle,
+            opA,
+            opB,
+            &alpha_,
+            descA.descriptor(),
+            descB.descriptor(),
+            &beta_,
+            descC.descriptor(),
+            compute_cuda_type,
+            CUSPARSE_SDDMM_ALG_DEFAULT,
+            buffer.get()));
       });
 #endif
 }

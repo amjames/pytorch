@@ -11,14 +11,15 @@
 #include <ATen/Functions.h>
 #include <ATen/NativeFunctions.h>
 #else
+#include <ATen/ops/addmm.h>
 #include <ATen/ops/addmv_native.h>
 #include <ATen/ops/copy_native.h>
-#include <ATen/ops/mul.h>
-#include <ATen/ops/scalar_tensor_native.h>
 #include <ATen/ops/empty.h>
-#include <ATen/ops/addmm.h>
+#include <ATen/ops/mul.h>
 #include <ATen/ops/resize_as_sparse_native.h>
+#include <ATen/ops/scalar_tensor_native.h>
 #include <ATen/ops/sparse_sampled_addmm_native.h>
+#include <ATen/ops/zeros_like.h>
 #endif
 
 #include <c10/util/MaybeOwned.h>
@@ -156,7 +157,7 @@ Tensor sparse_sampled_addmm_sparse_csr_cpu(
     const Tensor& mat2,
     const Scalar& beta,
     const Scalar& alpha) {
-  auto result = at::empty({0, 0}, self.options());
+  auto result = at::zeros_like(self);
   at::native::sparse_sampled_addmm_out_sparse_csr_cpu(self, mat1, mat2, beta, alpha, result);
   return result;
 }
@@ -182,8 +183,8 @@ void sparse_sampled_addmm_check_inputs(
       mat2.layout());
 
   TORCH_CHECK(
-      result.layout() == kSparseCsr,
-      "sampled_addmm: Expected result to have sparse csr layout, but got ",
+      result.layout() == kSparseCsr || result.layout() == kSparseBsr,
+      "sampled_addmm: Expected result to have sparse csr or bsr layout, but got ",
       result.layout());
   TORCH_CHECK(self.dense_dim() == 0,
       "sampled_addmm: Expected non-hybrid self tensor");

@@ -1,3 +1,5 @@
+#include "ATen/ops/broadcast_to.h"
+#include "ATen/ops/sparse_compressed_tensor.h"
 #define TORCH_ASSERT_ONLY_METHOD_OPERATORS
 #include <ATen/core/Tensor.h>
 #include <ATen/ExpandUtils.h>
@@ -20,6 +22,7 @@
 #include <ATen/ops/scalar_tensor_native.h>
 #include <ATen/ops/sparse_sampled_addmm_native.h>
 #include <ATen/ops/triangular_solve_native.h>
+#include <ATen/ops/zeros_like_native.h>
 #endif
 
 #include <c10/util/MaybeOwned.h>
@@ -28,7 +31,8 @@ namespace at {
 namespace native {
 
 /*
-  Computes `result` <- α*(A @ B) * spy(C) + β*C, where spy(C) is the sparsity pattern matrix of C.
+  Computes `result` <- α*(A @ B) * spy(C) + β*C, where spy(C) is the sparsity
+  pattern matrix of C.
 
   Args:
   * `mat1` - [in] dense Tensor A of size m × k.
@@ -36,6 +40,7 @@ namespace native {
   * `self` - [in] sparse Tensor C of size m × n.
   * `result` - [out] sparse Tensor of size m × n.
 */
+
 Tensor& sparse_sampled_addmm_out_sparse_csr_cuda(
     const Tensor& self,
     const Tensor& mat1,
@@ -47,12 +52,44 @@ Tensor& sparse_sampled_addmm_out_sparse_csr_cuda(
       self, mat1, mat2, beta, alpha, result);
 
   if (&result != &self) {
-    // We allow self to be a single matrix when mat1 and mat2 are batched
-    auto result_sizes = DimVector(mat1.sizes().slice(0, mat1.dim() - 2));
-    result_sizes.push_back(self.size(-2));
-    result_sizes.push_back(self.size(-1));
-    at::sparse_csr::get_sparse_csr_impl(result)->resize_(self._nnz(), result_sizes);
+    // the matrix part can be handled directly with a resize as sparse
+    result.resize_as_sparse_(self);
+    auto new_sizes = DimVector(mat1.sizes().slice(0, mat1.dim() - 2));
+    new_sizes.push_back(self.size(-2));
+    new_sizes.push_back(self.size(-1));
+    // If we need to add batch dims we must do that manually
+    if (new_sizes != DimVector(result.sizes())) {
+      // expand component tensors for batch dims on the left
+      auto batch_dims = mat1.sizes().slice(0, mat1.dim() - 2);
+      auto& resultImpl = *at::sparse_csr::get_sparse_csr_impl(result);
+      auto compressed_indices = resultImpl.crow_indices_;
+      {
+        auto crow_sizes = DimVector(batch_dims);
+        crow_sizes.append(DimVector(compressed_indices.sizes()));
+        compressed_indices.resize_(crow_sizes);
+      }
+      auto plain_indices = resultImpl.col_indices_;
+      {
+        auto col_sizes = DimVector(batch_dims);
+        col_sizes.append(DimVector(plain_indices.sizes()));
+        plain_indices.resize_(col_sizes);
+      }
+      auto values = resultImpl.values_;
+      {
+        auto values_sizes = DimVector(batch_dims);
+        values_sizes.append(DimVector(values.sizes()));
+        values.resize_(values_sizes);
+      }
+      resultImpl.set_member_tensors(
+          compressed_indices.contiguous(),
+          plain_indices.contiguous(),
+          values.contiguous(),
+          new_sizes);
+    }
+    // std::cout << "result after expand: \n" << result.to_dense() << std::endl;
     result.copy_(self);
+    // std::cout << "result after populate: \n" << result.to_dense() <<
+    // std::endl;
   }
 
   // there's a segfault when calling cuSPARSE on 0-sized matrices
@@ -71,7 +108,16 @@ Tensor sparse_sampled_addmm_sparse_csr_cuda(
     const Tensor& mat2,
     const Scalar& beta,
     const Scalar& alpha) {
-  auto result = at::empty({0, 0}, self.options());
+  Tensor plain_inds;
+  Tensor compressed_inds;
+  std::tie(compressed_inds, plain_inds) =
+      at::sparse_csr::getCompressedPlainIndices(self);
+  auto result = at::sparse_compressed_tensor(
+      compressed_inds.clone(),
+      plain_inds.clone(),
+      zeros_like(self.values()),
+      self.sizes(),
+      self.options());
   at::native::sparse_sampled_addmm_out_sparse_csr_cuda(self, mat1, mat2, beta, alpha, result);
   return result;
 }
