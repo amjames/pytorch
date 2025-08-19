@@ -11761,11 +11761,31 @@ def sample_inputs_alias_copy(op_info, device, dtype, requires_grad, **kwargs):
 
 
 def np_ref_add_cos_sin(a, b, alpha=1):
-    return alpha * np.cos(a) + np.sin(b)
+    return np.cos(a) + (alpha * np.sin(b))
 
 # Operator database (sorted alphabetically)
 op_db: list[OpInfo] = [
     BinaryUfuncInfo('add_cos_sin_1',
+                    ref=np_ref_add_cos_sin,
+                    dtypes=all_types_and_complex_and(torch.float16, torch.bfloat16),
+                    dtypesIfCUDA=all_types_and_complex_and(torch.float16, torch.bfloat16, torch.complex32),
+                    assert_autodiffed=True,
+                    supports_forward_ad=True,
+                    supports_fwgrad_bwgrad=True,
+                    promotes_int_to_float=True,
+                    sample_inputs_func=sample_inputs_add_sub,
+                    supports_out=False,
+                    decorators=(precisionOverride({torch.bfloat16: 1e-2}),),
+                    skips=(
+                        # no out= overload
+                        DecorateInfo(unittest.skip("Skipped!"), 'TestCommon', 'test_out'),
+                        DecorateInfo(unittest.skip("Skipped!"), 'TestCommon', 'test_out_requires_grad_error'),
+                        DecorateInfo(unittest.skip("Skipped!"), 'TestCommon', 'test_out_warning'),
+                        # No Cos intr for complex half
+                        DecorateInfo(unittest.expectedFailure, 'TestCommon', 'test_complex_half_reference_testing')
+                        )
+    ),
+    BinaryUfuncInfo('add_cos_sin_2',
                     ref=np_ref_add_cos_sin,
                     dtypes=all_types_and_complex_and(torch.float16, torch.bfloat16),
                     dtypesIfCUDA=all_types_and_complex_and(torch.float16, torch.bfloat16, torch.complex32),

@@ -380,6 +380,13 @@ namespace at::native {
 Tensor add_cos_sin_1(const Tensor& lhs, const Tensor& rhs, const Scalar& alpha) {
   return at::add(at::cos(lhs), at::sin(rhs), alpha);
 }
+//Note: Call to the above (at::native::add_cos_sin_1) vs call to generated `at::add_cos_sin_1` no dispatch.
+// tradeoff, no dispatch overhead, Inferring autograd uses dispatch to work!
+Tensor add_cos_sin_2(const Tensor& self, const Tensor& rhs, const Scalar& alpha) {
+  return at::native::add_cos_sin_1(self, rhs, alpha);
+  // c+p above also okay
+  // c+p above but s/at::/at::native::/ okay (here, but use care in general)
+}
 
 DEFINE_DISPATCH(add_clamp_stub);
 DEFINE_DISPATCH(mul_stub);

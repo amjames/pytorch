@@ -218,6 +218,10 @@
 #
 # NB: The parameter names here MUST be consistent with the parameter names
 # in native_functions.yaml
+- name: add_cos_sin_2(Tensor self, Tensor rhs, *, Scalar alpha=1) -> Tensor
+  self: grad * -self.sin().conj()
+  rhs: maybe_multiply(grad * rhs.cos().conj(), alpha)
+
 - name: abs(Tensor self) -> Tensor
   self: grad * self.sgn()
   result: handle_r_to_c(result.scalar_type(), self_t.conj() * self_p.sgn())
