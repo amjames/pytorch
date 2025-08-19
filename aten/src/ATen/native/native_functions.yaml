@@ -1,5 +1,15 @@
 # See README.md in this directory for more guidance
 
+  # after * kwarg only in the python interface, this is the same interface as add.Tensor
+  # note: I use the 1 suffix to be able to build with each version of the op at the same time
+  # editing this file triggers many sources to be regenerated so a rebuild after
+  # causes recompilation on the order of 30% of a clean build
+- func: add_cos_sin_1(Tensor self, Tensor rhs, *, Scalar alpha=1) -> Tensor
+  variants: function, method
+  # implied by default
+  # dispatch:
+  #   CompositeImplicitAutograd: add_cos_sin
+
 # *********NB: _cast_* operators are DEPRECATED and will be removed
 # eventually. These were previously used before TorchScript IR supported
 # representing ScalarType's. They are now superseded by usage of

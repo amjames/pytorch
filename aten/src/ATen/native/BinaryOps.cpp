@@ -104,6 +104,8 @@
 #include <ATen/ops/remainder_native.h>
 #include <ATen/ops/rshift_native.h>
 #include <ATen/ops/rsub_native.h>
+#include <ATen/ops/sin.h>
+#include <ATen/ops/cos.h>
 #include <ATen/ops/sigmoid_backward_native.h>
 #include <ATen/ops/special_chebyshev_polynomial_t.h>
 #include <ATen/ops/special_chebyshev_polynomial_t_native.h>
@@ -373,6 +375,11 @@ CREATE_COMPARISON_SCALAR_TENSOR_META_FUNC(ge)
 
 
 namespace at::native {
+// Note: Add to header if you want to direct call from other TU
+// Note: alpha is not optional b/c it has a default value
+Tensor add_cos_sin_1(const Tensor& lhs, const Tensor& rhs, const Scalar& alpha) {
+  return at::add(at::cos(lhs), at::sin(rhs), alpha);
+}
 
 DEFINE_DISPATCH(add_clamp_stub);
 DEFINE_DISPATCH(mul_stub);
