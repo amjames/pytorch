@@ -1387,8 +1387,29 @@ void shifted_chebyshev_polynomial_w_kernel(TensorIteratorBase& iterator) {
       });
 } // shifted_chebyshev_polynomial_w_kernel(TensorIteratorBase& iterator)
 
+void add_cos_sin_3_kernel(TensorIteratorBase& iterator, const Scalar& alpha_scalar) {
+AT_DISPATCH_FLOATING_AND_COMPLEX_TYPES_AND2(at::ScalarType::Half, at::ScalarType::BFloat16, iterator.dtype(), "add_cos_sin3_cpu", [&]() {
+    auto alpha = alpha_scalar.to<scalar_t>();
+    auto alpha_vec = Vectorized<scalar_t>(alpha);
+    cpu_kernel_vec(
+        iterator,
+        [=](scalar_t a, scalar_t b) -> scalar_t {
+          return std::cos(a) + alpha * std::sin(b);
+        },
+        [=](Vectorized<scalar_t> a, Vectorized<scalar_t> b) -> Vectorized<scalar_t>
+            {
+              auto cos_a = a.cos();
+              auto sin_b = b.sin();
+              auto add_cos_sin_res = vec::fmadd(sin_b, alpha_vec, cos_a);
+              return add_cos_sin_res;
+            });
+  });
+}
+
+
 } // namespace
 
+REGISTER_DISPATCH(add_cos_sin_3_stub, &add_cos_sin_3_kernel)
 REGISTER_DISPATCH(add_clamp_stub, &add_clamp_kernel)
 REGISTER_DISPATCH(mul_stub, &mul_kernel)
 REGISTER_DISPATCH(div_true_stub, &div_true_kernel)

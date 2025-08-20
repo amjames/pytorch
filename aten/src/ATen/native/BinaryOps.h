@@ -54,7 +54,7 @@ using binary_clamp_fn_alpha =
 
 // NB: codegenned
 DECLARE_DISPATCH(structured_binary_fn_alpha, add_stub)
-
+DECLARE_DISPATCH(structured_binary_fn_alpha, add_cos_sin_3_stub)
 DECLARE_DISPATCH(binary_clamp_fn_alpha, add_clamp_stub)
 DECLARE_DISPATCH(structured_binary_fn_alpha, sub_stub)
 DECLARE_DISPATCH(structured_binary_fn, mul_stub)

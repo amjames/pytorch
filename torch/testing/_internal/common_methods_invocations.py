@@ -11794,6 +11794,7 @@ op_db: list[OpInfo] = [
                     supports_fwgrad_bwgrad=True,
                     promotes_int_to_float=True,
                     sample_inputs_func=sample_inputs_add_sub,
+                    supports_out=False,
                     decorators=(precisionOverride({torch.bfloat16: 1e-2}),),
                     skips=(
                         # no out= overload
@@ -11803,6 +11804,18 @@ op_db: list[OpInfo] = [
                         # No Cos intr for complex half
                         DecorateInfo(unittest.expectedFailure, 'TestCommon', 'test_complex_half_reference_testing')
                         )
+    ),
+    BinaryUfuncInfo('add_cos_sin_3',
+                    ref=np_ref_add_cos_sin,
+                    dtypes=floating_types_and(torch.float16, torch.bfloat16),
+                    dtypesIfCUDA=floating_types_and(torch.float16, torch.bfloat16, torch.complex32),
+                    assert_autodiffed=True,
+                    supports_forward_ad=True,
+                    supports_fwgrad_bwgrad=True,
+                    promotes_int_to_float=True,
+                    sample_inputs_func=sample_inputs_add_sub,
+                    supports_out=True,
+                    decorators=(precisionOverride({torch.bfloat16: 1e-2}),),
     ),
     UnaryUfuncInfo('abs',
                    aliases=('absolute', ),

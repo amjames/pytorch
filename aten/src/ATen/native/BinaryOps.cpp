@@ -21,6 +21,8 @@
 #include <ATen/ops/add.h>
 #include <ATen/ops/add_native.h>
 #include <ATen/ops/add_ops.h>
+#include <ATen/ops/add_cos_sin_3.h>
+#include <ATen/ops/add_cos_sin_3_native.h>
 #include <ATen/ops/and_native.h>
 #include <ATen/ops/arctan2_native.h>
 #include <ATen/ops/atan2.h>
@@ -371,6 +373,17 @@ CREATE_COMPARISON_SCALAR_TENSOR_META_FUNC(le)
 CREATE_COMPARISON_SCALAR_TENSOR_META_FUNC(gt)
 CREATE_COMPARISON_SCALAR_TENSOR_META_FUNC(ge)
 
+//Macro expansion failure untill next codegen run!
+TORCH_META_FUNC2(add_cos_sin_3, Tensor) (const Tensor& self, const Tensor& rhs, const Scalar& alpha) {
+  //TORCH_CHECK(Meta data checks if needed)
+  // inspect inputs, chose correct dtype, broadcast shape, etc
+  // either assert out has these, or create it with those properties
+  build_borrowing_binary_op(maybe_get_output(), self, rhs);
+  //dtype check on alpha
+  native::alpha_check(dtype(), alpha);
+
+}
+
 } // namespace at::meta
 
 
@@ -386,6 +399,12 @@ Tensor add_cos_sin_2(const Tensor& self, const Tensor& rhs, const Scalar& alpha)
   return at::native::add_cos_sin_1(self, rhs, alpha);
   // c+p above also okay
   // c+p above but s/at::/at::native::/ okay (here, but use care in general)
+}
+
+DEFINE_DISPATCH(add_cos_sin_3_stub);
+
+TORCH_IMPL_FUNC(add_cos_sin_3_out) (const Tensor& self, const Tensor& rhs, const Scalar& alpha, const Tensor& result) {
+  add_cos_sin_3_stub(device_type(), *this, alpha);
 }
 
 DEFINE_DISPATCH(add_clamp_stub);

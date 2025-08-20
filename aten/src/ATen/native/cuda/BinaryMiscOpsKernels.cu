@@ -12,6 +12,17 @@
 
 namespace at::native {
 
+void add_cos_sin_3_kernel_cuda(TensorIteratorBase& iter, const Scalar& alpha){
+  AT_DISPATCH_FLOATING_AND_COMPLEX_TYPES_AND2(at::ScalarType::Half, at::ScalarType::BFloat16, iter.dtype(), "add_cos_sin_3_cuda", [&]() -> void {
+    auto alpha_val = alpha.to<scalar_t>();
+    gpu_kernel(iter, [alpha_val] GPU_LAMBDA (scalar_t a, scalar_t b) -> scalar_t {
+      auto cos_a = std::cos(a);
+      auto sin_b = std::sin(b);
+      return cos_a + alpha_val * sin_b;
+    });
+  });
+}
+
 void smooth_l1_kernel_cuda(TensorIteratorBase& iter, double beta) {
   AT_DISPATCH_FLOATING_TYPES_AND2(at::ScalarType::Half, at::ScalarType::BFloat16, iter.dtype(), "smooth_l1_cuda", [&iter, beta]() {
     scalar_t beta_val(beta);
@@ -69,6 +80,7 @@ void xlog1py_kernel_cuda(TensorIteratorBase& iter) {
   });
 }
 
+REGISTER_DISPATCH(add_cos_sin_3_stub, &add_cos_sin_3_kernel_cuda)
 REGISTER_DISPATCH(smooth_l1_stub, &smooth_l1_kernel_cuda)
 REGISTER_DISPATCH(huber_stub, &huber_kernel_cuda)
 REGISTER_DISPATCH(mse_stub, &mse_kernel_cuda)

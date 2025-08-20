@@ -15,6 +15,29 @@
   dispatch:
     CompositeExplicitAutograd: add_cos_sin_2
 
+# V3: Individual dispatch + structured delegates
+# still only one dispatch target -> handle routing below dispatch via structured kernel stubs 
+- func: add_cos_sin_3.out(Tensor self, Tensor rhs, *, Scalar alpha=1, Tensor(a!) out) -> Tensor(a!) 
+  device_check: NoCheck   # TensorIterator
+  structured: True
+  structured_inherits: TensorIteratorBase
+  dispatch:
+    CPU, CUDA: add_cos_sin_3_out
+  tags: pointwise
+
+- func: add_cos_sin_3.Tensor(Tensor self, Tensor rhs, *, Scalar alpha=1) -> Tensor
+  device_check: NoCheck   # TensorIterator
+  structured_delegate: add_cos_sin_3.out
+  variants: function, method
+  tags: pointwise
+
+- func: add_cos_sin_3_(Tensor(a!) self, Tensor rhs, *, Scalar alpha=1) -> Tensor(a!)
+  device_check: NoCheck # TensorIterator
+  structured_delegate: add_cos_sin_3.out
+  variants: function, method
+  tags: pointwise
+
+
 # *********NB: _cast_* operators are DEPRECATED and will be removed
 # eventually. These were previously used before TorchScript IR supported
 # representing ScalarType's. They are now superseded by usage of
